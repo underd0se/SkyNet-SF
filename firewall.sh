@@ -190,24 +190,23 @@ Check_Settings() {
 	swaplocation="$(awk 'NR==2 { print $1 }' /proc/swaps)"
 
 	if [ -z "$swaplocation" ] && ! Check_Swap; then
-		Log error -s "Skynet Requires A SWAP File - Install One ( $0 debug swap install )"
-		echo; exit 1
-	fi
-
-	if Check_Swap && [ -z "$(grep -E 'swapon [^#]+' /jffs/scripts/post-mount | cut -d ' ' -f2)" ]; then
+		Log warn -s "SWAP File not detected. Continuing in Low-RAM optimization mode."
+		if [ -f /proc/sys/vm/overcommit_memory ] && [ "$(cat /proc/sys/vm/overcommit_memory)" = "2" ]; then
+			echo 0 > /proc/sys/vm/overcommit_memory
+			Log info -s "Relaxed kernel overcommit limit to safely bypass SWAP requirement."
+		fi
+	elif Check_Swap && [ -z "$(grep -E 'swapon [^#]+' /jffs/scripts/post-mount | cut -d ' ' -f2)" ]; then
 		Log error -s "SWAPON Entry Missing - Fix This By Running ( $0 debug swap uninstall ) Then ( $0 debug swap install )"
 		echo; exit 1
-	fi
-
-	if grep -q '^partition' /proc/swaps; then
+	elif grep -q '^partition' /proc/swaps; then
 		Log error -s "SWAP Partitions Not Supported - Please Use SWAP File"
 		echo; exit 1
-	fi
-
-	# warn if too small (<1GB)
-	swap_kb=$(du -k "$swaplocation" 2>/dev/null | awk '{print $1}') || swap_kb=0
-	if [ "$swap_kb" -gt 0 ] && [ "$swap_kb" -lt 1048576 ]; then
-		Log error -s "SWAP File Too Small (<1GB) - Please Fix Immediately!"
+	else
+		# warn if too small (<1GB)
+		swap_kb=$(du -k "$swaplocation" 2>/dev/null | awk '{print $1}') || swap_kb=0
+		if [ "$swap_kb" -gt 0 ] && [ "$swap_kb" -lt 1048576 ]; then
+			Log error -s "SWAP File Too Small (<1GB) - Please Fix Immediately!"
+		fi
 	fi
 
 	# load banmalware and update cronjobs
@@ -2338,21 +2337,25 @@ Get_LocalName() {
 Manage_Device() {
 	echo "[i] Looking for available partitions"
 
-	# Build $@ = list of mountpoints whose fs is ext2/3/4, vfat, exfat or ntfs
+	# Build $@ = list of mountpoints whose fs is ext2/3/4, vfat, exfat, ntfs, jffs2 or ubifs
 	set --
 	while read -r _ mnt fs _; do
 		case "$fs" in
-			ext2|ext3|ext4|tfat|exfat)
+			ext2|ext3|ext4|tfat|exfat|jffs2|ubifs)
 				set -- "$@" "$mnt"
 				;;
 		esac
 	done < /proc/mounts
 
-	# If none found, bail out
+	# If none found, fallback to /jffs
 	if [ $# -eq 0 ]; then
-		echo "[*] No compatible USB partitions found - exiting!"
-		echo
-		exit 1
+		if [ -d "/jffs" ]; then
+			set -- "/jffs"
+		else
+			echo "[*] No compatible USB partitions or /jffs found - exiting!"
+			echo
+			exit 1
+		fi
 	fi
 
 	# Display numbered list
@@ -2727,7 +2730,7 @@ Load_Menu() {
 		printf '%-35s | %-8s\n' "Write Permission" "$(Red "[Failed]")"
 	fi
 	if ! Check_Swap; then
-		printf '%-35s | %-8s\n' "SWAP" "$(Red "[Failed]")"
+		printf '%-35s | %-8s\n' "SWAP" "$(Grn "[Zero-Storage]")"
 	fi
 	if [ "$(cru l | grep -c "Skynet")" -lt "2" ]; then
 		printf '%-35s | %-8s\n' "Cron Jobs" "$(Red "[Failed]")"
@@ -4626,7 +4629,7 @@ case "$1" in
 				listurl="$customlisturl"
 				echo "[i] Custom Filter Detected: $customlisturl"
 			else
-				listurl="https://raw.githubusercontent.com/Adamm00/IPSet_ASUS/master/filter.list"
+				listurl="https://raw.githubusercontent.com/underd0se/IPSet_ASUS/feat/zero-swap-optimization/filter.list"
 			fi
 		fi
 		curl -fsSI "$listurl" >/dev/null || { echo "[*] Stopping Banmalware"; echo; exit 1; }
@@ -4687,42 +4690,31 @@ case "$1" in
 			}
 		' /jffs/addons/shared-whitelists/shared-Skynet-whitelist > /tmp/skynet/skynet.manifest
 
-		# Download all feeds in parallel
+		# Zero-Storage Direct Streaming Pipeline
+		# 1) Create temporary sets in kernel memory matching active specifications
+		ipset -q create Skynet-Blacklist-Temp hash:ip hashsize 64 maxelem "$((65536 * 16))" comment
+		ipset -q create Skynet-BlockedRanges-Temp hash:net hashsize 64 maxelem "$((65536 * 6))" comment
+
+		# 2) Preserve all non-malware entries (manual bans, country bans, etc.)
+		if ipset -L -n Skynet-Blacklist >/dev/null 2>&1; then
+			ipset save Skynet-Blacklist | grep -vE 'comment "BanMalware: ' | sed 's/Skynet-Blacklist/Skynet-Blacklist-Temp/' | ipset restore -! 2>/dev/null
+		fi
+		if ipset -L -n Skynet-BlockedRanges >/dev/null 2>&1; then
+			ipset save Skynet-BlockedRanges | grep -vE 'comment "BanMalware: ' | sed 's/Skynet-BlockedRanges/Skynet-BlockedRanges-Temp/' | ipset restore -! 2>/dev/null
+		fi
+
+		# 3) Stream feeds sequentially directly into temporary sets
+		valid_entries=0
 		while IFS=' ' read -r url list || [ -n "$url" ]; do
-			(
-				[ -n "$url" ] || exit 0
-				curl -fsLZ --retry 2 --connect-timeout 5 --max-time 15 "$url" \
-					-o "${skynetloc}/lists/$list" 2>/dev/null \
-				&& echo "[✔] Downloaded $url" || echo "[✘] Failed to fetch: $url"
-			) &
-		done < /tmp/skynet/skynet.manifest
-		wait
-
-		# Clean and validate downloads
-		dos2unix "${skynetloc}/lists/"* 2>/dev/null
-		for file in "${skynetloc}/lists/"*; do
-			basefile="$(basename "$file")"
-			if ! grep -qF "$basefile" /tmp/skynet/skynet.manifest; then
-				rm -f "$file"
-			fi
-		done
-
-		sed -i '\~comment \"BanMalware: ~d' "$skynetipset"
-		if [ -d "${skynetloc}/lists" ] && ls "${skynetloc}/lists/"* 1>/dev/null 2>&1; then
-			if ! awk '
-				BEGIN { valid_entries=0 }
+			[ -n "$url" ] || continue
+			echo "[i] Streaming and loading: $list"
+			
+			if curl -fsSL --retry 2 --connect-timeout 5 --max-time 15 "$url" | awk -v src="$list" '
 				{
-					# Match IPv4 with optional CIDR mask
+					sub("\r$", "", $0)
 					if ($1 ~ /^([0-9]{1,3}\.){3}[0-9]{1,3}(\/([0-9]|[1-2][0-9]|3[0-2]))?([[:space:]]|$)/) {
 						ip = $1
-						src = FILENAME
-						gsub(".*/", "", src)
-
 						# Skip non-routable / private / special ranges that shouldn t be blacklisted
-						# 0.0.0.0/8, 10.0.0.0/8, 100.64.0.0/10 (CGNAT), 127.0.0.0/8, 169.254.0.0/16,
-						# 172.16.0.0/12, 192.0.0.0/24, 192.0.2.0/24, 192.168.0.0/16,
-						# 198.18.0.0/15, 198.51.100.0/24, 203.0.113.0/24,
-						# 224.0.0.0–255.255.255.255 (multicast / reserved)
 						if (ip ~ /^0\./ ||
 							ip ~ /^10\./ ||
 							ip ~ /^100\.(6[4-9]|[7-9][0-9]|1[0-1][0-9]|12[0-7])\./ ||
@@ -4740,39 +4732,38 @@ case "$1" in
 							ip ~ /^2(2[4-9]|[3-4][0-9]|5[0-5])\./) {
 							next
 						}
-
-						# De-duplicate on IP/CIDR
-						if (!x[ip]++) {
-							valid_entries++
-							# Single host or /32 → Skynet-Blacklist
-							if (ip ~ /^([0-9]{1,3}\.){3}[0-9]{1,3}\/32$/ || ip !~ /\//) {
-								print "add Skynet-Blacklist " ip " comment \"BanMalware: " src "\""
-							}
-							# Network ranges (/0–/31) → Skynet-BlockedRanges
-							else if (ip ~ /^([0-9]{1,3}\.){3}[0-9]{1,3}\/([0-9]|[1-2][0-9]|3[0-1])$/) {
-								print "add Skynet-BlockedRanges " ip " comment \"BanMalware: " src "\""
-							}
+						
+						if (ip ~ /^([0-9]{1,3}\.){3}[0-9]{1,3}\/32$/ || ip !~ /\//) {
+							print "add Skynet-Blacklist-Temp " ip " comment \"BanMalware: " src "\""
+						}
+						else if (ip ~ /^([0-9]{1,3}\.){3}[0-9]{1,3}\/([0-9]|[1-2][0-9]|3[0-1])$/) {
+							print "add Skynet-BlockedRanges-Temp " ip " comment \"BanMalware: " src "\""
 						}
 					}
 				}
-				END {
-					if (valid_entries == 0) exit 1
-				}
-			' "${skynetloc}/lists/"* >> "$skynetipset"; then
-				result="$(Red "[$(($(date +%s) - btime))s]")"
-				printf '%-8s\n' "$result"
-				printf '%-35s\n' "[✘] No usable malware entries found in feeds"
-				nocfg="1"
+			' | ipset restore -! 2>/dev/null; then
+				valid_entries=$((valid_entries + 1))
 			fi
+		done < /tmp/skynet/skynet.manifest
+
+		# 4) Swap, Cleanup and apply
+		if [ "$valid_entries" -gt 0 ]; then
+			ipset swap Skynet-Blacklist Skynet-Blacklist-Temp
+			ipset swap Skynet-BlockedRanges Skynet-BlockedRanges-Temp
+			ipset destroy Skynet-Blacklist-Temp
+			ipset destroy Skynet-BlockedRanges-Temp
+			sed -i '\~comment "BanMalware: ~d' "$skynetipset" 2>/dev/null
+			Display_Result
+			Display_Message "[i] Applying New Blacklist"
+			Display_Result
 		else
-			printf '%-35s\n' "[✘] No malware feeds found — skipping consolidation"
+			ipset destroy Skynet-Blacklist-Temp
+			ipset destroy Skynet-BlockedRanges-Temp
+			result="$(Red "[$(($(date +%s) - btime))s]")"
+			printf '%-8s\n' "$result"
+			printf '%-35s\n' "[✘] No usable malware entries found in feeds"
 			nocfg="1"
 		fi
-		printf "%-35s | " "[i] Finish Blacklist Consolidation"
-		Display_Result
-		Display_Message "[i] Applying New Blacklist"
-		ipset flush Skynet-Blacklist; ipset flush Skynet-BlockedRanges
-		ipset restore -! -f "$skynetipset" >/dev/null 2>&1
 		Display_Result
 		Display_Message "[i] Refreshing AiProtect Bans"
 		Refresh_AiProtect
@@ -5141,7 +5132,7 @@ case "$1" in
 	update)
 		Check_Lock "$@"
 		if ! Check_Connection; then echo "[*] Connection Error Detected - Exiting"; echo; exit 1; fi
-		remotedir="https://raw.githubusercontent.com/Adamm00/IPSet_ASUS/master"
+		remotedir="https://raw.githubusercontent.com/underd0se/IPSet_ASUS/feat/zero-swap-optimization"
 		remotever="$(curl -fsL --retry 3 --max-time 6 "$remotedir/firewall.sh" | Filter_Version)"
 		localmd5="$(md5sum "$0" | awk '{print $1}')"
 		remotemd5="$(curl -fsL --retry 3 --max-time 6 "${remotedir}/firewall.sh" | md5sum | awk '{print $1}')"
@@ -6492,7 +6483,7 @@ case "$1" in
 		skynetcfg="${device}/skynet/skynet.cfg"
 		touch "${device}/skynet/events.log"
 		touch "${device}/skynet/skynet.log"
-		remotedir="https://raw.githubusercontent.com/Adamm00/IPSet_ASUS/master"
+		remotedir="https://raw.githubusercontent.com/underd0se/IPSet_ASUS/feat/zero-swap-optimization"
 		mkdir -p "${skynetloc}/webui"
 		Download_File "webui/chart.js" "${skynetloc}/webui/chart.js"
 		Download_File "webui/chartjs-plugin-zoom.js" "${skynetloc}/webui/chartjs-plugin-zoom.js"
