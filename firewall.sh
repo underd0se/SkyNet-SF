@@ -191,6 +191,10 @@ Check_Settings() {
 
 	if [ -z "$swaplocation" ] && ! Check_Swap; then
 		Log warn -s "SWAP File not detected. Continuing in Low-RAM optimization mode."
+		if [ -f /proc/sys/vm/overcommit_memory ] && [ "$(cat /proc/sys/vm/overcommit_memory)" = "2" ]; then
+			echo 0 > /proc/sys/vm/overcommit_memory
+			Log info -s "Relaxed kernel overcommit limit to safely bypass SWAP requirement."
+		fi
 	elif Check_Swap && [ -z "$(grep -E 'swapon [^#]+' /jffs/scripts/post-mount | cut -d ' ' -f2)" ]; then
 		Log error -s "SWAPON Entry Missing - Fix This By Running ( $0 debug swap uninstall ) Then ( $0 debug swap install )"
 		echo; exit 1
