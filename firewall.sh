@@ -9,8 +9,8 @@
 #                           ╚══════╝╚═╝  ╚═╝   ╚═╝   ╚═╝  ╚═══╝╚══════╝   ╚═╝                               #
 #                                                                                                           #
 #                                 Router Firewall And Security Enhancements                                 #
-#                             By Adamm -  https://github.com/Adamm00/IPSet_ASUS                             #
-#                                           22/06/2026 - v8.1.0                                             #
+#                      By Adamm (Forked by underd0se) -  https://github.com/underd0se/SkyNet-SF             #
+#                                      16/07/2026 - v8.1.0 (Swap-Free)                                      #
 #############################################################################################################
 
 
@@ -2640,6 +2640,7 @@ Print_Log() {
 	if ! echo "$((blacklist2count - oldranges))" | grep -qF "-"; then newranges="+$((blacklist2count - oldranges))"; else newranges="$((blacklist2count - oldranges))"; fi
 	if [ "$1" = "minimal" ]; then
 		# Only print log to terminal
+		echo
 		Grn "$blacklist1count IPs (${newips}) -- $blacklist2count Ranges Banned (${newranges}) || $hits1 Inbound -- $hits2 Outbound Connections Blocked!"
 	else
 		# Print log to terminal and syslog
@@ -2699,7 +2700,7 @@ Load_Menu() {
 	Display_Header "9"
 	printf '╔═════════════════════ System ══════════════════════════════════════════════════════════════════════════════╗\n'
 	printf '║ %-20s │ %-82s ║\n' "Router Model"   "$(nvram get productid)"
-	printf '║ %-20s │ %-82s ║\n' "Skynet Version" "$localver ($(Filter_Date < "$0"))"
+	printf '║ %-20s │ %-82s ║\n' "Skynet Version" "$localver (Swap-Free) ($(Filter_Date < "$0"))"
 	printf '║ └── %-16s │ %-82s ║\n' "Hash" "$(md5sum "$0" | awk "{print \$1}")"
 	printf '║ %-20s │ %-82s ║\n' "Install Dir"    "${skynetloc}"
 	printf '║ %-20s │ %-82s ║\n' "FW Version"     "$(uname -o) v$(nvram get buildno)_$(nvram get extendno) (Kernel $(uname -r)) ($(uname -v | awk "{printf \"%s %s %s\n\", \$5,\$6,\$9}"))"
@@ -5991,7 +5992,7 @@ case "$1" in
 				fi
 				printf '╔═════════════════════ System ══════════════════════════════════════════════════════════════════════════════╗\n'
 				printf '║ %-20s │ %-82s ║\n' "Router Model"   "$(nvram get productid)"
-				printf '║ %-20s │ %-82s ║\n' "Skynet Version" "$localver ($(Filter_Date < "$0"))"
+				printf '║ %-20s │ %-82s ║\n' "Skynet Version" "$localver (Swap-Free) ($(Filter_Date < "$0"))"
 				printf '║ └── %-16s │ %-82s ║\n' "Hash" "$(md5sum "$0" | awk "{print \$1}")"
 				printf '║ %-20s │ %-82s ║\n' "FW Version"     "$(uname -o) v$(nvram get buildno)_$(nvram get extendno) (Kernel $(uname -r)) ($(uname -v | awk "{printf \"%s %s %s\n\", \$5,\$6,\$9}"))"
 				printf '║ %-20s │ %-82s ║\n' "iptables"       "$(iptables --version)"
