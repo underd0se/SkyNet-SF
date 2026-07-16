@@ -2415,8 +2415,9 @@ Create_Swap() {
 		Show_Menu "Select SWAP File Size:" \
 			"1GB" \
 			"2GB (Recommended)" \
+			"0GB (No Swap - SkyNet-SF)" \
 			"Exit"
-		Prompt_Input "1-2" menu
+		Prompt_Input "1-3" menu
 		case "${menu:?}" in
 			1)
 				swapsize_kb=1048576
@@ -2425,6 +2426,11 @@ Create_Swap() {
 			2)
 				swapsize_kb=2097152
 				break
+			;;
+			3)
+				echo "[i] Proceeding without SWAP file (SkyNet-SF mode)"
+				echo
+				return 0
 			;;
 			e|exit)
 				echo "[*] Exiting!"
