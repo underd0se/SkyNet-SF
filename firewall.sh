@@ -2430,6 +2430,9 @@ Create_Swap() {
 			3)
 				echo "[i] Proceeding without SWAP file (SkyNet-SF mode)"
 				echo
+				if ! grep -qF "swapon " /jffs/scripts/post-mount; then
+					echo "# swapon bypassed for SkyNet-SF" >> /jffs/scripts/post-mount
+				fi
 				return 0
 			;;
 			e|exit)
