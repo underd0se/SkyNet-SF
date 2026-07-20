@@ -8,18 +8,15 @@ SkyNet-SF is an optimized version of the Asuswrt-Merlin firewall script designed
 
 The original Skynet script requires users to mount a 2GB USB swap file to satisfy the Linux kernel's strict virtual memory reservation system (`vm.overcommit_memory=2`). Without this buffer, background processes crash with `Cannot allocate memory` kernel panics.
 
-SkyNet-SF eliminates this dependency by injecting a dynamic kernel patch (`vm.overcommit_memory=0`) directly into the initialization sequence. This forces the Asuswrt kernel into Heuristic Mode, allowing it to dynamically assess the physical RAM available rather than relying on strict virtual math. 
+SkyNet-SF eliminates this dependency through a two-pronged kernel optimization. First, it injects a dynamic patch (`vm.overcommit_memory=0`) to force the kernel into Heuristic Mode, allowing it to assess physical RAM directly rather than relying on strict virtual math. Second, when SkyNet-SF mode is selected during installation, it alters the kernel's swap preference (`vm.swappiness=0`). This ensures the router operates entirely in physical memory to prevent USB read/write degradation, but retains any active swap file as an absolute last-resort emergency buffer to prevent Out-Of-Memory kernel panics.
 
-## Disclaimer: Memory Implications and Asus Security Daemon (asd)
+## Memory Implications and Asus Security Daemon (asd)
 
-Running a zero-storage architecture on embedded devices with limited physical RAM (e.g., 512MB) carries specific side effects. Without a swap file to page idle memory, physical RAM is consistently maintained near maximum capacity.
+Running a strict zero-storage architecture (completely lacking a swap partition) on embedded devices with limited physical RAM (e.g., 512MB) carries side effects. 
 
-**AiProtection / asd Daemon Conflict**
-The Asus Security Daemon (`asd`), which powers TrendMicro's AiProtection, requires significant contiguous memory allocation to parse its encrypted malware signatures. When SkyNet-SF and `asd` compete for the same non-swappable physical RAM, `asd` will encounter allocation failures. 
+The Asus Security Daemon (`asd`), which powers TrendMicro's AiProtection, requires significant contiguous memory allocation to parse its encrypted malware signatures. When SkyNet-SF and `asd` compete for strictly non-swappable physical RAM, `asd` will encounter allocation failures. This results in the `asd` daemon entering a soft crash-loop, causing sustained CPU spikes (averaging 30% to 100% utilization) as it aggressively retries its memory allocation. 
 
-This results in the `asd` daemon entering a soft crash-loop, causing sustained CPU spikes (averaging 30% to 100% utilization on a single core) as it aggressively retries its memory allocation. 
-
-**Recommendation:** If you utilize Asus AiProtection or rely on the `asd` daemon for security assessments, it is highly recommended to use the original Skynet script with a standard 2GB swap file. SkyNet-SF is designed for users who keep AiProtection disabled or prefer to manage their memory constraints manually.
+**Recommendation:** SkyNet-SF's `swappiness=0` mode elegantly solves this conflict. By allowing a swap file to exist but instructing the kernel to actively avoid using it, the USB drive is protected from daily thrashing, but the `asd` daemon is still provided a safe paging buffer during memory saturation events.
 
 ## Stress Testing & Stability Validation
 
@@ -51,8 +48,8 @@ In your SSH Client, run the following command:
 2. Creates the data directory (`skynetloc`) on your selected USB partition.
 3. Injects execution triggers into `/jffs/scripts/firewall-start`, `/jffs/scripts/services-stop`, and `/jffs/scripts/service-event`.
 4. Injects configuration settings into `/jffs/configs/profile.add` and `/jffs/configs/dnsmasq.conf.add`.
-5. Writes a dummy `# swapon bypassed for SkyNet-SF` comment into `/jffs/scripts/post-mount` to satisfy legacy bypass checks.
-6. Backs up your router's default `overcommit_memory` setting to NVRAM and safely enforces `0` dynamically during operation.
+5. Backs up your router's default `swappiness` and `overcommit_memory` settings to NVRAM.
+6. Dynamically enforces `swappiness=0` (if SkyNet-SF mode is selected) and `overcommit_memory=0`, and injects persistence commands into `/jffs/scripts/firewall-start`.
 
 ## Uninstallation Procedure
 
@@ -66,8 +63,8 @@ sh /jffs/scripts/firewall uninstall
 1. Purges all IPSet arrays, cron jobs, and custom iptables rules from active memory.
 2. Deletes the entire SkyNet data directory from your USB drive.
 3. Scrubs the `# Skynet` execution triggers from all `/jffs/scripts/` and `/jffs/configs/` files.
-4. Scrubs the dummy `# swapon bypassed for SkyNet-SF` comment from `/jffs/scripts/post-mount`.
-5. Restores the router's original `overcommit_memory` kernel setting using the backup saved in NVRAM.
+4. Restores the router's original `swappiness` and `overcommit_memory` kernel settings using the backups saved in NVRAM.
+5. Scrubs the injected `# SkyNet-SF` overrides from your boot scripts and performs legacy bypass cleanup.
 6. Restarts the firewall and dnsmasq services to return the router to a pristine baseline state.
 
 ## Usage and Commands
