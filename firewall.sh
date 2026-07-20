@@ -9,8 +9,8 @@
 #                           ╚══════╝╚═╝  ╚═╝   ╚═╝   ╚═╝  ╚═══╝╚══════╝   ╚═╝                               #
 #                                                                                                           #
 #                                 Router Firewall And Security Enhancements                                 #
-#                      By Adamm (Forked by underd0se) -  https://github.com/underd0se/SkyNet-SF             #
-#                                      20/07/2026 - v8.1.1 (Swap-Free)                                      #
+#                      By Adamm (Forked by underd0se) -  https://github.com/underd0se/Skynet-Zero             #
+#                                      20/07/2026 - v8.1.1 (Zero Swap)                                      #
 #############################################################################################################
 
 
@@ -2417,7 +2417,7 @@ Create_Swap() {
 		Show_Menu "Select SWAP File Size:" \
 			"1GB" \
 			"2GB (Recommended)" \
-			"0GB (No Swap - SkyNet-SF)" \
+			"0GB (Zero Swap - Skynet Zero)" \
 			"Exit"
 		Prompt_Input "1-3" menu
 		case "${menu:?}" in
@@ -2430,7 +2430,7 @@ Create_Swap() {
 				break
 			;;
 			3)
-				echo "[i] Proceeding without SWAP file (SkyNet-SF mode)"
+				echo "[i] Proceeding without SWAP file (Skynet Zero mode)"
 				echo
 				skynetsf="1"
 				if [ -f /proc/sys/vm/swappiness ]; then
@@ -2708,7 +2708,7 @@ Load_Menu() {
 	Display_Header "9"
 	printf '╔═════════════════════ System ══════════════════════════════════════════════════════════════════════════════╗\n'
 	printf '║ %-20s │ %-82s ║\n' "Router Model"   "$(nvram get productid)"
-	printf '║ %-20s │ %-82s ║\n' "Skynet Version" "$localver (Swap-Free) ($(Filter_Date < "$0"))"
+	printf '║ %-20s │ %-82s ║\n' "Skynet Version" "$localver (Zero Swap) ($(Filter_Date < "$0"))"
 	printf '║ └── %-16s │ %-82s ║\n' "Hash" "$(md5sum "$0" | awk "{print \$1}")"
 	printf '║ %-20s │ %-82s ║\n' "Install Dir"    "${skynetloc}"
 	printf '║ %-20s │ %-82s ║\n' "FW Version"     "$(uname -o) v$(nvram get buildno)_$(nvram get extendno) (Kernel $(uname -r)) ($(uname -v | awk "{printf \"%s %s %s\n\", \$5,\$6,\$9}"))"
@@ -3227,7 +3227,7 @@ Load_Menu() {
 					printf '%-35s | %-40s\n' "[15] --> Stats Country Lookup" "$(if Is_Enabled "$lookupcountry"; then Grn "[Enabled]"; else Ylow "[Disabled]"; fi)"
 					printf '%-35s | %-40s\n' "[16] --> CDN Whitelisting" "$(if Is_Enabled "$cdnwhitelist"; then Grn "[Enabled]"; else Red "[Disabled]"; fi)"
 					printf '%-35s | %-40s\n' "[17] --> Display WebUI" "$(if Is_Enabled "$displaywebui"; then Grn "[Enabled]"; else Ylow "[Disabled]"; fi)"
-					if grep -q "vm/swappiness # SkyNet-SF" /jffs/scripts/firewall-start 2>/dev/null; then
+					if grep -q "vm/swappiness # Skynet Zero" /jffs/scripts/firewall-start 2>/dev/null || grep -q "vm/swappiness # SkyNet-SF" /jffs/scripts/firewall-start 2>/dev/null; then
 						swapmode_status="$(Grn "[Zero Swap]")"
 					elif grep -qE "swapon .* # Skynet" /jffs/scripts/post-mount 2>/dev/null; then
 						swapmode_status="$(Ylow "[Swap]")"
@@ -5168,7 +5168,7 @@ case "$1" in
 		if [ "$1" = "amtmupdate" ] && [ "$2" = "check" ]; then
 			exit 0
 		fi
-		remotedir="https://raw.githubusercontent.com/underd0se/SkyNet-SF/master"
+		remotedir="https://raw.githubusercontent.com/underd0se/Skynet-Zero/master"
 		remotever="$(curl -fsL --retry 3 --max-time 6 "$remotedir/firewall.sh" | Filter_Version)"
 		localmd5="$(md5sum "$0" | awk '{print $1}')"
 		remotemd5="$(curl -fsL --retry 3 --max-time 6 "${remotedir}/firewall.sh" | md5sum | awk '{print $1}')"
@@ -5837,7 +5837,7 @@ case "$1" in
 					nvram unset skynet_old_swappiness
 				fi
 				nvram commit
-				sed -i '\~# SkyNet-SF~d' /jffs/scripts/firewall-start 2>/dev/null
+				sed -i '\~# Skynet Zero~d' /jffs/scripts/firewall-start 2>/dev/null; sed -i '\~# SkyNet-SF~d' /jffs/scripts/firewall-start 2>/dev/null
 
 				device="$(echo "$skynetloc" | awk -F'/skynet' '{print $1}')"
 				if [ -z "$device" ] || [ ! -d "$device" ]; then
@@ -5846,8 +5846,8 @@ case "$1" in
 				else
 					Create_Swap
 					if [ "$skynetsf" = "1" ]; then
-						if ! grep -q "vm/swappiness # SkyNet-SF" /jffs/scripts/firewall-start; then
-							echo "echo 0 > /proc/sys/vm/swappiness # SkyNet-SF" >> /jffs/scripts/firewall-start
+						if ! grep -q "vm/swappiness # Skynet Zero" /jffs/scripts/firewall-start; then
+							echo "echo 0 > /proc/sys/vm/swappiness # Skynet Zero" >> /jffs/scripts/firewall-start
 						fi
 					fi
 				fi
@@ -6083,7 +6083,7 @@ case "$1" in
 				fi
 				printf '╔═════════════════════ System ══════════════════════════════════════════════════════════════════════════════╗\n'
 				printf '║ %-20s │ %-82s ║\n' "Router Model"   "$(nvram get productid)"
-				printf '║ %-20s │ %-82s ║\n' "Skynet Version" "$localver (Swap-Free) ($(Filter_Date < "$0"))"
+				printf '║ %-20s │ %-82s ║\n' "Skynet Version" "$localver (Zero Swap) ($(Filter_Date < "$0"))"
 				printf '║ └── %-16s │ %-82s ║\n' "Hash" "$(md5sum "$0" | awk "{print \$1}")"
 				printf '║ %-20s │ %-82s ║\n' "FW Version"     "$(uname -o) v$(nvram get buildno)_$(nvram get extendno) (Kernel $(uname -r)) ($(uname -v | awk "{printf \"%s %s %s\n\", \$5,\$6,\$9}"))"
 				printf '║ %-20s │ %-82s ║\n' "iptables"       "$(iptables --version)"
@@ -6588,7 +6588,7 @@ case "$1" in
 		skynetcfg="${device}/skynet/skynet.cfg"
 		touch "${device}/skynet/events.log"
 		touch "${device}/skynet/skynet.log"
-		remotedir="https://raw.githubusercontent.com/underd0se/SkyNet-SF/master"
+		remotedir="https://raw.githubusercontent.com/underd0se/Skynet-Zero/master"
 		mkdir -p "${skynetloc}/webui"
 		Download_File "webui/chart.js" "${skynetloc}/webui/chart.js"
 		Download_File "webui/chartjs-plugin-zoom.js" "${skynetloc}/webui/chartjs-plugin-zoom.js"
@@ -6617,8 +6617,8 @@ case "$1" in
 			echo "$cmdline" >> /jffs/scripts/firewall-start
 		fi
 		if [ "$skynetsf" = "1" ]; then
-			cmdline2="echo 0 > /proc/sys/vm/swappiness # SkyNet-SF"
-			if ! grep -qE "^echo .* # SkyNet-SF" /jffs/scripts/firewall-start; then
+			cmdline2="echo 0 > /proc/sys/vm/swappiness # Skynet Zero"
+			if ! grep -qE "^echo .* # Skynet Zero" /jffs/scripts/firewall-start; then
 				echo "$cmdline2" >> /jffs/scripts/firewall-start
 			fi
 		fi
@@ -6710,9 +6710,9 @@ case "$1" in
 					nvram commit
 					echo "[i] Deleting Skynet Files"
 					sed -i '\~# Skynet~d' /jffs/scripts/firewall-start /jffs/scripts/services-stop /jffs/scripts/service-event /jffs/configs/profile.add /jffs/configs/dnsmasq.conf.add
-					sed -i '\~# SkyNet-SF~d' /jffs/scripts/firewall-start 2>/dev/null
+					sed -i '\~# Skynet Zero~d' /jffs/scripts/firewall-start 2>/dev/null; sed -i '\~# SkyNet-SF~d' /jffs/scripts/firewall-start 2>/dev/null
 					# Legacy cleanup for old bypass
-					sed -i '\~# swapon bypassed for SkyNet-SF~d' /jffs/scripts/post-mount 2>/dev/null
+					sed -i '\~# swapon bypassed for Skynet Zero~d' /jffs/scripts/post-mount 2>/dev/null; sed -i '\~# swapon bypassed for SkyNet-SF~d' /jffs/scripts/post-mount 2>/dev/null
 					sed -i 's/^#swapon /swapon /g' /jffs/scripts/post-mount 2>/dev/null
 					service restart_dnsmasq >/dev/null 2>&1
 					rm -rf "/jffs/addons/shared-whitelists/shared-Skynet-whitelist" "/jffs/addons/shared-whitelists/shared-Skynet2-whitelist" "${skynetloc}" "/jffs/scripts/firewall" "/opt/bin/firewall" "/tmp/skynet.lock" "/tmp/skynet"
