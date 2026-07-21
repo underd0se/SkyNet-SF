@@ -45,10 +45,12 @@ In your SSH Client, run the following command:
 ```Shell
 /usr/sbin/curl -s "https://raw.githubusercontent.com/underd0se/Skynet-Zero/master/firewall.sh" -o "/jffs/scripts/firewall" && chmod 755 /jffs/scripts/firewall && sh /jffs/scripts/firewall install
 ```
-
 During the interactive installation wizard:
 1. When prompted to **Select SWAP File Size**, choose **Option 3: 0GB (Zero Swap - Skynet Zero)** to install the firewall without generating a swap file.
-2. Follow the remaining prompts to configure your logging and filtering preferences.
+
+   <img width="503" height="187" alt="zero swap" src="https://github.com/user-attachments/assets/684cf1a7-331a-4e7b-89ba-181f1d0a0add" />
+
+3. Follow the remaining prompts to configure your logging and filtering preferences.
 
 **Changes Made During Installation:**
 1. Downloads the execution script to `/jffs/scripts/firewall`.
@@ -61,6 +63,8 @@ During the interactive installation wizard:
 ## Switching Swap Modes
 
 Skynet Zero provides a seamless UI toggle to switch between traditional USB Swap mode and the optimized Zero Swap mode at any time, without needing to reinstall.
+
+<img width="555" height="793" alt="switching" src="https://github.com/user-attachments/assets/98c7d913-c60c-4303-a65a-8247188fb66a" />
 
 1. Open the Skynet interactive menu by typing `firewall` in your SSH client.
 2. Navigate to **Settings** (Option 11).
@@ -83,36 +87,3 @@ sh /jffs/scripts/firewall uninstall
 4. Restores the router's original `swappiness` and `overcommit_memory` kernel settings using the backups saved in NVRAM.
 5. Scrubs the injected `# Skynet Zero` overrides from your boot scripts and performs legacy bypass cleanup.
 6. Restarts the firewall and dnsmasq services to return the router to a pristine baseline state.
-
-## Usage and Commands
-
-To open the interactive menu:
-
-```Shell
-firewall
-```
-
-### Example Commands
-
-**Unban:**
-* `firewall unban ip 8.8.8.8`: Unban the specified IP.
-* `firewall unban range 8.8.8.8/24`: Unban the specified CIDR block.
-* `firewall unban domain google.com`: Unban the specified URL.
-
-**Ban:**
-* `firewall ban ip 8.8.8.8 "Comment"`: Ban the specified IP with a comment.
-* `firewall ban range 8.8.8.8/24 "Comment"`: Ban the specified CIDR block with a comment.
-* `firewall ban domain google.com`: Ban the specified URL.
-
-**Settings:**
-* `firewall settings autoupdate enable|disable`: Enable/disable Skynet autoupdating.
-* `firewall settings filter all|inbound|outbound`: Select what traffic to filter.
-* `firewall settings webui enable|disable`: Enable/disable WebUI.
-
-**Update:**
-* `firewall update`: Standard update check.
-* `firewall update -f`: Force update even if no changes detected.
-
-**Stats:**
-* `firewall stats`: Compile stats with default top 10 output.
-* `firewall stats search ip 8.8.8.8`: Search logs for entries on 8.8.8.8.
