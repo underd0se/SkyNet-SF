@@ -439,9 +439,7 @@ Check_Security() {
 	# Detect chkupdate.sh malware
 	if [ -f "/jffs/chkupdate.sh" ] || [ -f "/tmp/update" ] || [ -f "/tmp/.update.log" ] || [ -f "/jffs/runtime.log" ] || grep -qsF "upgrade.sh" "/jffs/scripts/openvpn-event"; then
 		Log error -s "Warning! Router Malware Detected (chkupdate.sh) - Investigate Immediately!"
-		grep -hoE '([0-9]{1,3}\.){3}[0-9]{1,3}' "/jffs/chkupdate.sh" "/tmp/update" "/tmp/.update.log" "/jffs/runtime.log" "/jffs/scripts/openvpn-event" 2>/dev/null | awk '!x[$0]++' | while IFS= read -r ip; do
-			echo "add Skynet-Blacklist $ip comment \"Malware: chkupdate.sh\""
-		done | ipset restore -!
+		grep -hoE '([0-9]{1,3}\.){3}[0-9]{1,3}' "/jffs/chkupdate.sh" "/tmp/update" "/tmp/.update.log" "/jffs/runtime.log" "/jffs/scripts/openvpn-event" 2>/dev/null | awk '!x[$0]++ {print "add Skynet-Blacklist "$0" comment \"Malware: chkupdate.sh\""}' | ipset restore -!
 	fi
 
 	# Detect updater malware
@@ -1067,8 +1065,8 @@ Display_Result() {
 
 Command_Not_Recognized() {
 	Ylow "Command Not Recognized, Please Try Again"
-	Ylow "For Help:   https://github.com/Adamm00/IPSet_ASUS#help"
-	Ylow "Common Issues: https://github.com/Adamm00/IPSet_ASUS/wiki#common-issues"
+	Ylow "For Help:   https://github.com/underd0se/Skynet-Zero#help"
+	Ylow "Common Issues: https://github.com/underd0se/Skynet-Zero/wiki#common-issues"
 	echo
 	exit 2
 }
@@ -1169,14 +1167,10 @@ Save_IPSets() {
 
 Unban_PrivateIP() {
 	if Is_Enabled "$unbanprivateip" && Is_Enabled "$logmode"; then
-		grep -F "INBOUND" "$syslogloc" | Filter_PrivateSRC | grep -oE 'SRC=[0-9,\.]*' | cut -c 5- | awk '!x[$0]++' | while IFS= read -r "ip"; do
-			echo "add Skynet-Whitelist $ip comment \"Private IP\""
-			echo "del Skynet-Blacklist $ip"
-		done | ipset restore -!
-		grep -F "OUTBOUND" "$syslogloc" | Filter_PrivateDST | grep -oE 'DST=[0-9,\.]*' | cut -c 5- | awk '!x[$0]++' | while IFS= read -r "ip"; do
-			echo "add Skynet-Whitelist $ip comment \"Private IP\""
-			echo "del Skynet-Blacklist $ip"
-		done | ipset restore -!
+		{
+			grep -F "INBOUND" "$syslogloc" | Filter_PrivateSRC | grep -oE 'SRC=[0-9,\.]*' | cut -c 5-
+			grep -F "OUTBOUND" "$syslogloc" | Filter_PrivateDST | grep -oE 'DST=[0-9,\.]*' | cut -c 5-
+		} | awk '!x[$0]++ { print "add Skynet-Whitelist "$0" comment \"Private IP\"\ndel Skynet-Blacklist "$0 }' | ipset restore -!
 	fi
 }
 
@@ -6688,7 +6682,7 @@ case "$1" in
 
 	uninstall)
 		echo "If You Were Experiencing Issues, Try Update Or Visit SNBForums/Github For Support"
-		echo "https://github.com/Adamm00/IPSet_ASUS"
+		echo "https://github.com/underd0se/Skynet-Zero"
 		echo
 		while true; do
 			Show_Menu "Warning - This Will Delete All Files In The Skynet Directory. Are You Sure You Want To Uninstall?" \
@@ -6778,8 +6772,8 @@ case "$1" in
 	;;
 	*)
 		Ylow "Command Not Recognized, Please Try Again"
-		Ylow "For Help:   https://github.com/Adamm00/IPSet_ASUS#help"
-		Ylow "Common Issues: https://github.com/Adamm00/IPSet_ASUS/wiki#common-issues"
+		Ylow "For Help:   https://github.com/underd0se/Skynet-Zero#help"
+		Ylow "Common Issues: https://github.com/underd0se/Skynet-Zero/wiki#common-issues"
 	;;
 esac
 
